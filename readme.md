@@ -10,18 +10,15 @@ main parts of our codes are listed as below:
 - volume/hybrid/image
   - define necessary network structures, dataloader and transforms (image pre-processing and data augmentation) for 3D model, 2.5D model and 2D model respectively. In this work, our novelty is to propose a hybrid Res-UNet structure for taking advantage of spatial connectivity between adjacent slices, meanwhile alleviating computational cost compared with purely 3D network. 
 - loss.py
-  - define loss functions used in this project. Here we propose the snake-constrained weighted Hausdorff distance (WHD) loss with reference to the paper [Locating Objects Without Bounding Boxes](https://arxiv.org/pdf/1806.07564.pdf)
-lr_scheduler.py
-main.py
-main.sh
-metric.py
-metricsvsnumimages.py
-operation_hist.py
-operation.py
-playground.py
-plot_regionprops.py
-snake_cp.py
-snake.py
-train.py
-utils.py
-vision.py
+  - define loss functions used in this project. We propose the snake-constrained weighted Hausdorff distance (WHD) loss with reference to the paper [Locating Objects Without Bounding Boxes](https://arxiv.org/pdf/1806.07564.pdf). As a modification, we apply snake constraint to the original WHD loss to further ensure that a closed artery boundary can be obtained during training. 
+- metric.py
+  - define commonly used metrics for evaluating results of boundary detection and plaque segmentation, such as Dice, AVD, HD95 and ASD as mentioned above.
+- snake.py
+  - define snake constraint applied to WHD loss. 
+- vision.py
+  - define functions for results visualization such as saving samples stack into pdf and show the prediction results in video. 
+  
+## How to run
+running this project is very simple. For plaque detection, change to directory PlaqueSegmentation directory, modify the parameters setting in main.sh and run the main.sh file with ./main.sh. Please notice that datasets used for train, validation and test should be defined first (with both input image and annotation). For boundary detection, similar operations to plaque detection are necessary.  
+
+## sample results
