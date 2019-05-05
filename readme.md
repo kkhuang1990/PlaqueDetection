@@ -1,7 +1,4 @@
-# The Comprehensive version for current tasks and projects
+# Plaque detection from coronary artery CT images using convolutional neural networks
+this is a project for applying deep learning approach to plaque detection from coronary arteries in cardiac CT images. We have provided easy-used deep learning models such as U-Net, Res-UNet, Tiramisu and DeepLab v2 with both 2D and 3D types. Results are evaluated w.r.t. Dice score (Dice), Absolute volume difference (AVD), Haudorff distance with 95 percentile (HD95) and average symmetric surface distance (ASD) respectively. Besides for medical coronary artery dataset, our codes also work well on the public PROMISE12 dataset. 
 
-## what's new
-- put commonly-used files together so as to make it the same for modification everytime, such as
-utils.py, vision.py, operation.py, loss.py et.al
-- for different tasks, put corresponding files into different sub-folders such as train.py, main.sh, main.py et.al
-- results for each experiment are saved into a pickle file for easy plot and comparison
+## Code composition
