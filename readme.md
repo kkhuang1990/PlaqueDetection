@@ -27,4 +27,3 @@ running this project is very simple. For plaque detection, change to directory P
 
 ### results on PROMISE12 dataset
 <img src="./results_promise12.png"  title="results on the public PROMISE12 dataset">
-
