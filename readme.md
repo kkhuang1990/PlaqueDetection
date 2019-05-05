@@ -4,12 +4,16 @@ this is a project for applying deep learning approach to boundary and plaque det
 ## Code composition
 main parts of our codes are listed as below:
 - BoundDetection
+
 define functions of training the whole network and corresponding configurations in train.py and main.py respectively. For easy modification of hyper-parameters, define main.sh file with necessary configuration.
 - PlaqueSegmentation
+
 Similar to BoundDetection directory, use train.py and main.py file for training the network and configurations respectively. Difference is that model under this directory is used for plaque detection.
 - volume/hybrid/image
+
 define necessary network structures, dataloader and transforms (image pre-processing and data augmentation) for 3D model, 2.5D model and 2D model respectively. In this work, our novelty is to propose a hybrid Res-UNet structure for taking advantage of spatial connectivity between adjacent slices, meanwhile alleviating computational cost compared with purely 3D network. 
 - loss.py
+
 define loss functions used in this project. Here we propose the snake-constrained weighted Hausdorff distance (WHD) loss with reference to the paper [Locating Objects Without Bounding Boxes](https://arxiv.org/pdf/1806.07564.pdf)
 lr_scheduler.py
 main.py
