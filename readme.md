@@ -4,7 +4,6 @@ this is a project for applying deep learning approach to boundary and plaque det
 ## Code composition
 main parts of our codes are listed as below:
 - BoundDetection
-
   define functions of training the whole network and corresponding configurations in train.py and main.py respectively. For easy modification of hyper-parameters, define main.sh file with necessary configuration.
 - PlaqueSegmentation
   Similar to BoundDetection directory, use train.py and main.py file for training the network and configurations respectively. Difference is that model under this directory is used for plaque detection.
