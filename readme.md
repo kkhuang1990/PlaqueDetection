@@ -24,6 +24,7 @@ running this project is very simple. For plaque detection, change to directory P
 ## sample results
 ### results on Coronary Artery dataset
 <img src="./results_coronary.png"  title="results on coronary artery dataset">
+
 ### results on PROMISE12 dataset
 <img src="./results_promise12.png"  title="results on the public PROMISE12 dataset">
 
