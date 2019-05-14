@@ -48,8 +48,6 @@ from image.models.deeplab_resnet import adjust_learning_rate, cal_loss
 
 def train_model(model, criterion, optimizer, scheduler, args):
     """ train the model
-        for obtain stable validation result, we use averaged val loss over several epochs
-        as the principle of choosing best model weights
     Args:
         model: model inheriting from nn.Module class
         criterion: criterion class, loss function used
@@ -63,19 +61,22 @@ def train_model(model, criterion, optimizer, scheduler, args):
     loss_keep = 0 # check how many times the val loss has decreased continuously
     epoch_loss_prev = 1.0e9 # loss at the previous epoch
 
+    # metrics for each epoch
     epoch_acc = {'train': [], 'val': [], 'test': []}
     epoch_loss = {'train': [], 'val': [], 'test': []}
-    epoch_loss_boundwise = {'train': [], 'val': [], 'test': []}  # for pred and reg respectively
+    epoch_loss_boundwise = {'train': [], 'val': [], 'test': []}  # for prediction and regularization respectively
     epoch_hdist = {'train': [], 'val': [], 'test': []}
     epoch_reghdf = {'train': [], 'val': [], 'test': []}
     epoch_asd = {'train': [], 'val': [], 'test': []}
     epoch_vd = {'train': [], 'val': [], 'test': []}
-    epoch_f1_score = {'train': [], 'val': [], 'test': []}  # data is converted from bound
+    epoch_f1_score = {'train': [], 'val': [], 'test': []}
     epoch_f1_score_class = {'train': [], 'val': [], 'test': []}
 
-
+    # for hard mining
     metric_prev_epoch = None
     phases_prev_epoch = None
+
+    # start training
     for epoch in range(args.num_train_epochs):
         print("{}/{}".format(epoch+1, args.num_train_epochs))
         if epoch != 0 and epoch % args.n_epoch_hardmining == 0:
@@ -85,7 +86,7 @@ def train_model(model, criterion, optimizer, scheduler, args):
 
         if args.model_type == '2d':
             from image.dataloader import read_train_data
-            if args.only_plaque:
+            if args.only_plaque:  # only use samples containing plaques for training
                 dataloaders = read_train_data(args.data_dir, args.compose, 'train', None, None, True,
                                     is_hard_mining, args.num_workers, args.batch_size, args.percentile, args.multi_view,
                                     args.only_plaque, args.config, args.bc_learning)
@@ -93,6 +94,7 @@ def train_model(model, criterion, optimizer, scheduler, args):
                 dataloaders = read_train_data(args.data_dir, args.compose, 'train', metric_prev_epoch, phases_prev_epoch, True,
                                   is_hard_mining, args.num_workers, args.batch_size, args.percentile, args.multi_view,
                                   args.only_plaque, args.config, args.bc_learning)
+
         else:  # parameters of dataloader for 2.5D and 3D is the same
             if args.model_type == '3d':
                 from volume.dataloader import read_train_data
@@ -103,26 +105,28 @@ def train_model(model, criterion, optimizer, scheduler, args):
                                           is_hard_mining, args.percentile, args.multi_view, args.interval, args.down_sample,
                                           args.batch_size, args.num_workers, True, args.config)
 
+        # during hard mining, if # of training samples is lower than threshold, stop training
         if len(dataloaders['train'].dataset.phases) <= 20:
             break
 
         dataset_sizes = {'train': 0, 'val': 0, 'test': 0}
         for phase in ['train', 'val', 'test']:
-            # print("processing {}".format(phase))
             if phase == 'train':
                 scheduler.step()
                 if args.model == 'deeplab_resnet':
                     adjust_learning_rate(optimizer, scheduler)
 
                 model.train()  # Set model to training mode
-                slicewise_metric_epoch = []
+                slicewise_metric_epoch = [] # for hard mining
+
             else:
                 model.eval()  # Set model to evaluate mode
 
             running_loss = 0.0
             running_hdist, running_reghdf, running_asd, running_vd = 0.0, 0.0, 0.0, 0.0
             running_corrects, running_f1_score = 0.0, 0.0
-            running_fscores = np.zeros(args.output_channel, dtype=np.float32)
+            running_fscores = np.zeros(args.output_channel, dtype=np.float32) # class-wise F1 score
+            # record # of effective samples for each class for segmentation
             running_effect_samples = np.zeros(args.output_channel, dtype=np.uint32)
 
             if args.criterion.startswith('whddb') or args.criterion == 'mwhddb': # record inner and outer bound respectively
@@ -132,94 +136,71 @@ def train_model(model, criterion, optimizer, scheduler, args):
             for sample_inx, sample in enumerate(dl_pbar):
                 dl_pbar.update(100)
                 inputs, labels = sample
-                # print("Input size: {} Label size: {}".format(inputs.size(), labels.size() ))
+
                 patch_size = len(inputs)
                 dataset_sizes[phase] += patch_size
 
                 # wrap them in Variable
                 if args.use_gpu:
                     inputs = Variable(inputs.cuda()).float()
-
-                    if phase == 'train' and args.bc_learning is not None:
-                        labels = Variable(labels.cuda()).float()
-                    else:
-                        labels = Variable(labels.cuda()).long()
+                    labels = Variable(labels.cuda()).long()
 
                 else:
                     inputs = Variable(inputs).float()
-
-                    if phase == 'train' and args.bc_learning is not None:
-                        labels = Variable(labels).float()
-                    else:
-                        labels = Variable(labels).long()
+                    labels = Variable(labels).long()
 
                 optimizer.zero_grad()
-                outputs = model(inputs) # multiple output is available
-                # use snake as post-processing to obtain closed contour
+                outputs = model(inputs)
+                # snake constraint
                 regs = probmap2bound(F.softmax(outputs, 1), n_workers=32, thres=0.7, kernel_size=9)
 
-                if phase == 'train' and args.bc_learning is not None: # for bc learning
-                    if args.model == 'deeplab_resnet':
-                        loss = cal_loss(outputs, labels, args.criterion, args.criterion_bc)
-                        outputs = outputs[-1] # max fusion output is saved
-                        outputs = nn.Upsample(size=(inputs.size(2), inputs.size(3)), mode='bilinear')(outputs)
-                    else:
-                        loss = args.criterion_bc(outputs, labels)
-                else:
-                    if args.model == 'deeplab_resnet':
-                        loss = cal_loss(outputs, labels, args.criterion, criterion)
-                        outputs = outputs[-1] # max fusion output is saved
-                        outputs = nn.Upsample(size=(inputs.size(2), inputs.size(3)), mode='bilinear')(outputs)
+                if args.model == 'deeplab_resnet':
+                    loss = cal_loss(outputs, labels, args.criterion, criterion)
+                    outputs = outputs[-1] # max fusion output is saved
+                    outputs = nn.Upsample(size=(inputs.size(2), inputs.size(3)), mode='bilinear')(outputs)
 
-                    elif args.model_type == "2.5d" and args.model == "res_unet_reg":
-                        prob_map, reg = outputs
-                        n_gt_pts = torch.sum(labels.view(labels.size(0), -1) != 0, 1).float()
-                        # print("GT: {}".format(n_gt_pts))
-                        # print("Reg: {}".format(reg))
-                        criterion_reg = nn.SmoothL1Loss()
-                        loss_reg = criterion_reg(reg, n_gt_pts)
-                        assert (args.criterion.startswith('whddb') or args.criterion == 'mwhddb'), "Hybrid Res-UNet should match" \
-                                                                                          "with WHD loss"
-                        loss_whd, loss_boundwise = criterion(F.softmax(prob_map, dim=1), labels)
-                        loss = loss_whd + 1.0 * loss_reg
-                        outputs = prob_map
+                elif args.model_type == "2.5d" and args.model == "res_unet_reg": # Hybrid res-unet with regularization
+                    prob_map, reg = outputs
+                    n_gt_pts = torch.sum(labels.view(labels.size(0), -1) != 0, 1).float()
+                    criterion_reg = nn.SmoothL1Loss()
+                    loss_reg = criterion_reg(reg, n_gt_pts)
+                    assert (args.criterion.startswith('whddb') or args.criterion == 'mwhddb'), \
+                        "Hybrid Res-UNet should match with WHD loss"
+                    loss_whd, loss_boundwise = criterion(F.softmax(prob_map, dim=1), labels)
+                    loss = loss_whd + 1.0 * loss_reg
+                    outputs = prob_map
 
-                    else:
-                        if args.criterion == 'nll' and not args.mpl:
-                            loss = criterion(F.log_softmax(outputs, dim=1), labels)
-                        elif args.criterion == 'whd':
-                            loss = criterion(F.softmax(outputs, dim=1)[:, 1], labels)
-                        elif args.criterion == 'mwhd':
-                            loss = criterion(F.softmax(outputs, dim=1)[:, 1], labels)
-                        # whddb series loss
-                        elif args.criterion == 'whddb' or args.criterion == 'mwhddb' or args.criterion == "whddbmax":
-                            loss, loss_boundwise = criterion(F.softmax(outputs, dim=1), labels)
-                        # snake constrained whddb loss
-                        elif args.criterion == "whddbsnake":
-                            if epoch <= 10:
-                                criterion_base = WeightedHausdorffDistanceDoubleBoundLoss(return_boundwise_loss=True,
-                                    alpha=args.whd_alpha, beta=args.whd_beta, ratio=args.whd_ratio)
-                                loss, loss_boundwise = criterion_base(F.softmax(outputs, dim=1), labels)
-                            else:
-                                # reg has already been calculated before
-                                loss, loss_boundwise = criterion(F.softmax(outputs, dim=1), labels, regs)
-                        elif args.criterion == 'whddb_cereg':
-                            loss_whd, loss_boundwise = criterion(F.softmax(outputs, dim=1), labels)
-                            loss_ce = nn.CrossEntropyLoss(ignore_index=0)(outputs, labels)
-                            loss = 0.2 * loss_whd + 0.8 * loss_ce
-                        else: # dice, ce, gdl1, gdl2, ceb
-                            loss = criterion(outputs, labels)
+                else: # with single output
+                    if args.criterion == 'nll' and not args.mpl:
+                        loss = criterion(F.log_softmax(outputs, dim=1), labels)
+                    elif args.criterion == 'whd':
+                        loss = criterion(F.softmax(outputs, dim=1)[:, 1], labels)
+                    elif args.criterion == 'mwhd':
+                        loss = criterion(F.softmax(outputs, dim=1)[:, 1], labels)
+                    # whddb series loss
+                    elif args.criterion == 'whddb' or args.criterion == 'mwhddb' or args.criterion == "whddbmax":
+                        loss, loss_boundwise = criterion(F.softmax(outputs, dim=1), labels)
+                    # snake constrained whddb loss
+                    elif args.criterion == "whddbsnake":
+                        if epoch <= 10:
+                            criterion_base = WeightedHausdorffDistanceDoubleBoundLoss(return_boundwise_loss=True,
+                                alpha=args.whd_alpha, beta=args.whd_beta, ratio=args.whd_ratio)
+                            loss, loss_boundwise = criterion_base(F.softmax(outputs, dim=1), labels)
+                        else:
+                            # reg has already been calculated before
+                            loss, loss_boundwise = criterion(F.softmax(outputs, dim=1), labels, regs)
+                    elif args.criterion == 'whddb_cereg':
+                        loss_whd, loss_boundwise = criterion(F.softmax(outputs, dim=1), labels)
+                        loss_ce = nn.CrossEntropyLoss(ignore_index=0)(outputs, labels)
+                        loss = 0.2 * loss_whd + 0.8 * loss_ce
+                    else: # dice, ce, gdl1, gdl2, ceb
+                        loss = criterion(outputs, labels)
 
                 _, preds = torch.max(outputs.data, 1)
 
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
-
-                # statistics
-                if phase == 'train' and args.bc_learning is not None:
-                    _, labels = torch.max(labels, 1)
-
 
                 if args.criterion.startswith('whddb') or args.criterion == 'mwhddb':
                     running_boundwise_loss += loss_boundwise.data.cpu().numpy() * patch_size
@@ -269,8 +250,6 @@ def train_model(model, criterion, optimizer, scheduler, args):
             epoch_f1_score_class[phase].append(running_f1_class)  # f1 score for each class
             epoch_f1_score[phase].append(running_f1_class.mean())
 
-            epoch_metric = epoch_hdist
-
             if args.criterion.startswith('whddb') or args.criterion == 'mwhddb':
                 print("[{:5s}({} samples)] Loss: {:.4f} Loss_boundwise: {} Acc: {:.4f} Ave_F1: {:.4f} class-wise F1: {} "
                       "Ave_hdf: {:.4f} Ave_reghdf: {:.4f} Ave_ASD: {:.4f} Ave_VD: {:.4f}".format(phase, len(dataloaders[phase].dataset.phases),
@@ -287,13 +266,12 @@ def train_model(model, criterion, optimizer, scheduler, args):
                 metric_prev_epoch = np.array(slicewise_metric_epoch)
                 phases_prev_epoch = dataloaders['train'].dataset.phases
 
-            # deep copy the model
+            # save the learnt best model evaluated on validation data
             if phase == 'val':
                 val_loss_bf = sum(epoch_loss['val'][-5:]) / len(epoch_loss['val'][-5:])
                 if val_loss_bf <= best_loss:
                     best_loss = val_loss_bf
-                    # best_epoch = epoch
-                    # be careful when assign one tensor to another
+
                     best_model_wts = copy.deepcopy(model.state_dict())
                     torch.save(model, args.model_save_name)
 
@@ -304,17 +282,18 @@ def train_model(model, criterion, optimizer, scheduler, args):
 
                 epoch_loss_prev = val_loss_bf
 
-        # plot temporal loss, acc, f1_score after test
+        # plot temporal loss, acc, f1_score for train, val and test respectively.
         if (epoch+1) % 5 == 0 and phase == 'test':
             metrics = [epoch_loss, epoch_acc, epoch_f1_score, epoch_asd, epoch_vd, epoch_hdist, epoch_reghdf]
             labels = ['total_loss', 'pixel_acc', 'F1_score', 'asd', 'vd', 'hd95_pred', 'hd95_reg']
             plot_metrics(metrics, labels, fig_dir=args.fig_dir)
             plot_class_f1(epoch_f1_score_class, args.fig_dir)
 
-            if args.criterion.startswith('whddb') or args.criterion == 'mwhddb':
-                metrics= [{k:v[i] for k, v in epoch_loss_boundwise.items()} for i in range(args.output_channel-1)]
-                labels = ['innerbound_loss', 'outerbound_loss']
-                plot_metrics(metrics, labels, fig_dir=args.fig_dir)
+            ## for plot innerbound and outerbound loss respectively
+            # if args.criterion.startswith('whddb') or args.criterion == 'mwhddb':
+            #     metrics= [{k:v[i] for k, v in epoch_loss_boundwise.items()} for i in range(args.output_channel-1)]
+            #     labels = ['innerbound_loss', 'outerbound_loss']
+            #     plot_metrics(metrics, labels, fig_dir=args.fig_dir)
 
         if loss_keep == 10:
             break
@@ -324,31 +303,30 @@ def train_model(model, criterion, optimizer, scheduler, args):
     plot_metrics(metrics, labels, fig_dir=args.fig_dir)
     plot_class_f1(epoch_f1_score_class, args.fig_dir)
 
-    if args.criterion.startswith('whddb') or args.criterion == 'mwhddb':
-        metrics = [{k: v[i] for k, v in epoch_loss_boundwise.items()} for i in range(args.output_channel - 1)]
-        labels = ['innerbound_loss', 'outerbound_loss']
-        plot_metrics(metrics, labels, fig_dir=args.fig_dir)
+    # if args.criterion.startswith('whddb') or args.criterion == 'mwhddb':
+    #     metrics = [{k: v[i] for k, v in epoch_loss_boundwise.items()} for i in range(args.output_channel - 1)]
+    #     labels = ['innerbound_loss', 'outerbound_loss']
+    #     plot_metrics(metrics, labels, fig_dir=args.fig_dir)
 
     print('Best val loss: {:4f}'.format(best_loss))
 
     model.load_state_dict(best_model_wts)
     torch.save(model, args.model_save_name)
 
+
 def model_reference(args, sample_stack_rows=50):
     """ model reference and plot the segmentation results
         for model reference, several epochs are used to balance the risks and other metrics
         for segmentation results plotting, only one epoch is used without data augmentation
     Args:
-        model: model
-        dataloaders: DataLoader class, dataloader used to read test data
         args: parser arguments
         sample_stack_rows: int, how many slices to plot per image
     """
+
     #############################################################################################
     # Part 1: model reference and metric evaluations
     #############################################################################################
     model = torch.load(args.model_save_name, map_location=lambda storage, loc: storage)
-
     if args.use_gpu:
         model = model.cuda()
 
@@ -391,7 +369,7 @@ def model_reference(args, sample_stack_rows=50):
 
         if args.model == 'deeplab_resnet':
             outputs = nn.Upsample(size=(inputs.size(2), inputs.size(3)), mode='bilinear')(outputs[-1])
-        elif args.model_type == "2.5d" and args.model == "res_unet_reg":
+        elif args.model_type == "2.5d" and args.model == "res_unet_reg": # multiple outputs
             outputs = outputs[0]
 
         _, preds = torch.max(outputs.data, 1)
@@ -558,9 +536,6 @@ def plot_save_result(labels, inputs, preds, outputs, start, samp_art_name, root_
     for data_type in data_types:
         arrays = list(data[data_type])
         imageio.mimsave('{}/{}.gif'.format(fig_dir, data_type), arrays)
-        # with imageio.get_writer('{}/{}.gif'.format(fig_dir, data_type), mode='I') as writer:
-        #     for data in data[data_type]:
-        #         writer.append_data(data)
 
     with open(osp.join(fig_dir, 'data.pkl'), 'wb') as writer:
         pickle.dump(data, writer, protocol=pickle.HIGHEST_PROTOCOL)

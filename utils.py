@@ -4,16 +4,16 @@
 
 import matplotlib as mpl
 mpl.use('Agg')
+import matplotlib.pyplot as plt
 
 import warnings
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='scipy')
+
 import numpy as np
 from sklearn.preprocessing import label_binarize
 from scipy import ndimage
 
-import matplotlib.pyplot as plt
 import cv2
-
-warnings.filterwarnings('ignore', category=RuntimeWarning, module='scipy')
 
 def count_parameters(model):
     """ count number of parameters in a model """
@@ -109,7 +109,6 @@ def central_crop(image, patch_size):
         im: numpy ndarray, input image
         new_size: tuple, new image size
     """
-
     assert isinstance(patch_size, (int, tuple)), "size must be int or tuple"
     if isinstance(patch_size, int):
         size = (patch_size, patch_size)
@@ -271,33 +270,6 @@ def gray2outerbound(gray, width):
 
     return outer_bound
 
-# def gray2innerouterbound(gray, width=1):
-#     """ convert mask with grayscale value to inner and outer boundaries
-#         where inner and outer boundaries are treated as different classes
-#     """
-#
-#     h, w = gray.shape[:2]
-#     gray[gray == 76] = 255
-#     gray[gray == 151] = 255
-#     bound = np.zeros_like(gray, dtype=np.uint8)
-#
-#     bound = np.zeros_like(gray, dtype=np.uint8)
-#     label = gray2mask(gray)
-#     label_binary = label_binarize(label.flatten(), classes=range(0, 3))
-#     label_binary = np.reshape(label_binary, (h, w, -1))
-#     bound_binary = np.zeros_like(label_binary)
-#
-#     for i in range(3):  # use Sobel edge detector
-#         horizontal = ndimage.sobel(label_binary[:, :, i], axis=0)
-#         vertical = ndimage.sobel(label_binary[:, :, i], axis=1)
-#         tmp = np.logical_or(horizontal != 0, vertical != 0)
-#         bound_binary[:, :, i] = tmp
-#
-#     bound[bound_binary[:, :, 0] != 0] = 2  # outer bound marked as 2
-#     bound[bound_binary[:, :, 1] != 0] = 1  # inner bound marked as 1
-#
-#     return bound
-
 def gray2innerouterbound(gray, width):
     """ convert mask annotation into inner and outer boundaries
         where inner and outer boundaries are treated as different classes
@@ -412,7 +384,7 @@ def ls2bound(ls, width=1):
 
 
 def lslist2bound(ls_list):
-    """ convet ls list to boundary """
+    """ convert ls list to boundary """
 
     h, w = ls_list[0].shape
     bound = np.zeros((h, w), dtype=np.uint8)
@@ -420,62 +392,3 @@ def lslist2bound(ls_list):
         bound[ls2bound(ls, width=1)] = inx + 1
 
     return bound
-
-
-if __name__ == "__main__":
-    gray = np.random.randint(0, 256, (100, 100), dtype=np.uint8)
-    # gray = img_as_float(gray)
-    rgb = gray2rgb(gray)
-    print(rgb.shape)
-    print(rgb.dtype)
-    plt.figure()
-    plt.imshow(rgb)
-    plt.savefig("test.png")
-
-
-
-# def read_loss_acc_from_txt(file_name, fig_name= None):
-#     """ read loss and acc from txt file for both train and test data
-#         and return the result as a dictionary
-#     """
-#     train_loss, train_acc = [], []
-#     test_loss, test_acc = [], []
-#     with open(file_name, 'rb') as f:
-#         for line in f.readlines():
-#             line = line.strip()
-#             if line.startswith('train'):
-#                 loss, acc = float(line.split(' ')[2]), float(line.split(' ')[4])
-#                 train_loss.append(loss)
-#                 train_acc.append(acc)
-#             if line.startswith('test'):
-#                 loss, acc = float(line.split(' ')[2]), float(line.split(' ')[4])
-#                 test_loss.append(loss)
-#                 test_acc.append(acc)
-#
-#     data =  {'train': (train_loss, train_acc),
-#             'test': (test_loss, test_acc)}
-#     # plot accuracy
-#     plt.figure()
-#     for phase, value in data.iteritems():
-#         loss, acc = value
-#         plt.plot(acc, label=phase)
-#     plt.title("pixel-wise segmentation accuracy")
-#     plt.xlabel("epoch")
-#     plt.ylabel("accuracy (%)")
-#     plt.legend()
-#     if fig_name:
-#         plt.savefig(fig_name+'_acc.png')
-#     plt.close()
-#
-#     # plot loss
-#     plt.figure()
-#     for phase, value in data.iteritems():
-#         loss, acc = value
-#         plt.plot(loss, label=phase)
-#     plt.title("pixel-wise segmentation loss")
-#     plt.xlabel("epoch")
-#     plt.ylabel("loss")
-#     plt.legend()
-#     if fig_name:
-#         plt.savefig(fig_name+'_loss.png')
-#     plt.close()

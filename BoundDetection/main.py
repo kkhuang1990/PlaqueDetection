@@ -33,7 +33,6 @@ import matplotlib as mpl
 mpl.use('Agg')
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--data_dir', type=str, help="from where to read data")
@@ -117,8 +116,8 @@ if __name__ == "__main__":
         from volume.transforms import CentralCrop, Rescale, Gray2Mask, ToTensor, Gray2Binary, Identical, HU2Gray, RandomFlip
         from volume.transforms import RandomTranslate, RandomCentralCrop, AddNoise, RandomRotation, HU2GrayMultiStreamToTensor
 
-    # transforms
-    if args.output_channel == 2: # 2 possibilities: (1) binary class seg (2) bound detection
+    # choose transforms of annotation under different settings
+    if args.output_channel == 2: # 2 options: (1) binary class seg (2) bound detection
         if args.bound_out:
             if args.bound_type == 'inner':
                 ToMask = Gray2InnerBound(width=args.width)
@@ -129,20 +128,22 @@ if __name__ == "__main__":
         else:
             ToMask = Gray2Binary()
 
-    elif args.output_channel == 3: # 2 options (1) triple class seg (2) inner bound + outer bound
+    elif args.output_channel == 3: # 2 options: (1) triple class seg (2) inner bound + outer bound
         if args.bound_out:
             ToMask = Gray2InnerOuterBound(width=args.width)
         else:
             ToMask = Gray2Triple()
+
     elif args.output_channel == 4:
         ToMask = Gray2TripleWithBound(n_classes=4, width=args.width)
+
     elif args.output_channel == 5:
         if args.bound_out:
             ToMask = Gray2TripleWithBound(n_classes=5, width=args.width)
         else:
             ToMask = Gray2Mask()
 
-    args.compose = {'train': transforms.Compose([HU2Gray() if args.model != 'hyper_tiramisu' else Identical(),
+    args.compose = {'train': transforms.Compose([HU2Gray(),
                                                  RandomRotation() if args.rotation else Identical(),
                                                  RandomFlip() if args.flip else Identical(),
                                                  RandomCentralCrop() if args.r_central_crop else CentralCrop(args.central_crop),
@@ -150,13 +151,13 @@ if __name__ == "__main__":
                                                  RandomTranslate() if args.random_trans else Identical(),
                                                  AddNoise() if args.noise else Identical(),
                                                  ToMask,
-                                                 ToTensor(norm=True) if args.model != 'hyper_tiramisu' else HU2GrayMultiStreamToTensor()]),
+                                                 ToTensor(norm=True)]),
 
-                    'test': transforms.Compose([HU2Gray() if args.model != 'hyper_tiramisu' else Identical(),
+                    'test': transforms.Compose([HU2Gray(),
                                                 CentralCrop(args.central_crop),
                                                 # Rescale(args.rescale),
                                                 ToMask,
-                                                ToTensor(norm=True) if args.model != 'hyper_tiramisu' else HU2GrayMultiStreamToTensor()])}
+                                                ToTensor(norm=True)])}
 
     # whether use pre_train model or not
     if args.use_pre_train:
@@ -201,13 +202,13 @@ if __name__ == "__main__":
 
                 model = FCDenseNet(args.color_channel, args.output_channel, args.theta)
 
-            elif args.model == 'hyper_tiramisu':
-                if args.with_shallow_net:
-                    from image.models.hyper_tiramisu import FCDenseNet43 as FCDenseNet
-                else:
-                    from image.models.hyper_tiramisu import FCDenseNet67 as FCDenseNet
-
-                model = FCDenseNet(args.color_channel, args.output_channel, args.theta)
+            # elif args.model == 'hyper_tiramisu':
+            #     if args.with_shallow_net:
+            #         from image.models.hyper_tiramisu import FCDenseNet43 as FCDenseNet
+            #     else:
+            #         from image.models.hyper_tiramisu import FCDenseNet67 as FCDenseNet
+            #
+            #     model = FCDenseNet(args.color_channel, args.output_channel, args.theta)
 
             elif args.model == 'deeplab_resnet':
                 from image.models.deeplab_resnet import Res_Ms_Deeplab
@@ -239,13 +240,13 @@ if __name__ == "__main__":
 
                 model = FCDenseNet(args.color_channel, args.output_channel, args.theta)
 
-            elif args.model == 'hyper_tiramisu':
-                if args.with_shallow_net:
-                    from volume.models.hyper_tiramisu import FCDenseNet43 as FCDenseNet
-                else:
-                    from volume.models.hyper_tiramisu import FCDenseNet67 as FCDenseNet
-
-                model = FCDenseNet(args.color_channel, args.output_channel, args.theta)
+            # elif args.model == 'hyper_tiramisu':
+            #     if args.with_shallow_net:
+            #         from volume.models.hyper_tiramisu import FCDenseNet43 as FCDenseNet
+            #     else:
+            #         from volume.models.hyper_tiramisu import FCDenseNet67 as FCDenseNet
+            #
+            #     model = FCDenseNet(args.color_channel, args.output_channel, args.theta)
 
         elif args.model_type == "2.5d": # Hybrid model with 3D input and 2D output
             if args.model == 'res_unet':
@@ -257,6 +258,7 @@ if __name__ == "__main__":
 
                 model = ResUNet(args.color_channel, args.output_channel, args.interval, args.rescale)
             elif args.model == 'res_unet_reg':
+                # hybrid res-unet with regularization in original paper which introduced WHD loss
                 print("Hybrid res_unet is called")
                 if args.with_shallow_net:
                     from hybrid.models.hybrid_res_unet_reg import ResUNet18 as ResUNet # 15 slices
@@ -280,25 +282,10 @@ if __name__ == "__main__":
                 else:
                     weight = torch.from_numpy(np.load('../class_weights/nlf_weight_all_{}.npy'.format(args.output_channel))).float()
 
-            if args.mod_outline:
-                weight[2] = weight[2] + 5.0  # manually modify the weight for outline
-
-        elif args.weight_type == 'nlf':
-            if args.only_plaque:
-                weight = torch.from_numpy(np.load('../class_weights/nlf_weight_onlyrisk.npy')).float()
-            else:
-                weight = torch.from_numpy(np.load('../class_weights/nlf_weight_all_{}.npy'.format(args.output_channel))).float()
-        elif args.weight_type == 'mfb':
-            if args.only_plaque:
-                weight = torch.from_numpy(np.load('../class_weights/mfb_weight_onlyrisk.npy')).float()
-            else:
-                weight = torch.from_numpy(np.load('../class_weights/mfb_weight_all_{}.npy'.format(args.output_channel))).float()
-
         weight = Variable(weight.cuda())
 
-    else:
-        weight = args.weight # weight is None
-
+    else: # no prior weight, especially for bound detection
+        weight = args.weight
     print("weight: {}".format(weight))
 
     # criterion
@@ -309,16 +296,7 @@ if __name__ == "__main__":
     elif args.criterion == 'dice':
         criterion = DiceLoss(weight=weight, ignore_index=None, weight_type=args.weight_type, cal_zerogt=args.cal_zerogt)
 
-    elif args.criterion == 'gdl_inv_square':
-        criterion = GeneralizedDiceLoss(weight=weight, ignore_index=None, weight_type='inv_square',
-                                        alpha=args.alpha)
-    elif args.criterion == 'gdl_others_one_gt':
-        criterion = GeneralizedDiceLoss(weight=weight, ignore_index=None, weight_type='others_one_gt',
-                                        alpha=args.alpha)
-    elif args.criterion == 'gdl_others_one_pred':
-        criterion = GeneralizedDiceLoss(weight=weight, ignore_index=None, weight_type='others_one_pred',
-                                        alpha=args.alpha)
-    elif args.criterion == 'gld_none':
+    elif args.criterion == 'gdl_none':
         criterion = GeneralizedDiceLoss(weight=weight, ignore_index=None, weight_type=None,
                                         alpha=args.alpha)
 
@@ -346,7 +324,7 @@ if __name__ == "__main__":
     elif args.criterion == "whddbsnake":
         criterion = WeightedHausdorffDistanceDoubleBoundLossWithSnake(return_multi_loss=True, alpha=args.whd_alpha,
                                                              beta=args.whd_beta, ratio=args.whd_ratio)
-    # this part need be modified
+    # whddb loss with regularization
     elif args.criterion == "whddb_cereg":
         criterion = WeightedHausdorffDistanceDoubleBoundLoss(return_boundwise_loss=True, alpha=args.whd_alpha, beta=args.whd_beta, ratio=args.whd_ratio)
 
@@ -356,9 +334,6 @@ if __name__ == "__main__":
     else:
         args.criterion_bc = WeightedKLDivLoss(weight=weight)
 
-    # Loss Max-Pooling
-    if args.mpl:
-        criterion = MaxPoolLoss(criterion)
 
     # optimizer
     if args.opt == 'Adam':
@@ -378,11 +353,11 @@ if __name__ == "__main__":
 
     # learning schedule
     if args.lr_scheduler == 'StepLR':
-        exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
+        my_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
     elif args.lr_scheduler == 'PolyLR':
-        exp_lr_scheduler = PolyLR(optimizer, max_iter=args.num_train_epochs, power=0.9)
+        my_lr_scheduler = PolyLR(optimizer, max_iter=args.num_train_epochs, power=0.9)
 
-    # save args to log file
+    # print arguments setting
     for arg in vars(args):
         print("{} : {}".format(arg, getattr(args, arg)))
 
@@ -397,7 +372,7 @@ if __name__ == "__main__":
 
     since = time.time()
     if not args.only_test:
-        train_model(model, criterion, optimizer, exp_lr_scheduler, args)
+        train_model(model, criterion, optimizer, my_lr_scheduler, args)
 
     # model reference
     model_reference(args, sample_stack_rows=50)

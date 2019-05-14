@@ -1,18 +1,20 @@
 # _*_ coding: utf-8 _*_ 
 
+""" functions for visualization """
+
 import matplotlib as mpl
 mpl.use('Agg')
-
 import matplotlib.pyplot as plt
+
 from utils import mask2rgb
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import precision_recall_curve
 from metric import cal_f_score
+
 import numpy as np
 import _pickle as pickle
 from sklearn.preprocessing import label_binarize
 from sklearn.metrics import f1_score
-# import torch
 import os
 import os.path as osp
 import itertools
@@ -22,6 +24,7 @@ from sklearn.metrics import auc
 from sklearn.metrics.pairwise import pairwise_distances
 from metric import slicewise_hd95
 import matplotlib.animation as animation
+
 # for customed colormap
 from matplotlib import cm
 from matplotlib.colors import ListedColormap
@@ -61,28 +64,6 @@ def sample_stack_color(stack, metrics, rows=10, cols=10, start_with=0, show_ever
         plt.savefig(fig_name+'.png')
     plt.close()
 
-
-def sample_dict_data(data_list, rows=15, start_with=0, show_every=2, scale=3, label=False, fig_name=None):
-    """ show sample of a list of data
-    Args:
-        data_list: list, list of data in which each element is a dictionary
-    """
-    keys = data_list[0].keys()
-    cols = len(keys)
-
-    _, ax = plt.subplots(rows, cols, figsize=[scale * cols, scale * rows])
-    for i in range(rows):
-        ind = start_with + i * show_every
-        if ind < len(data_list):
-            for j in range(cols):
-                ax[i, j].imshow(data_list[ind][keys[j]], cmap='gray')
-                ax[i, j].axis('off')
-                if label:
-                    ax[i, j].set_title("s{} {}".format(ind, keys[j]))
-    if fig_name:
-        plt.savefig(fig_name + '.png')
-    # plt.close()
-    plt.show()
 
 def plot_metrics(metrics, labels, fig_dir):
     """ plot experiment metric results
@@ -906,34 +887,34 @@ def save_gif_artery(orig_label_pick_path, bound_pick_path):
     # ani.save('{}/artery.gif'.format(gif_save_dir), writer="imagemagick")
     ani.save('{}/artery.mp4'.format(gif_save_dir), writer="ffmpeg", codec='mpeg4', fps=10)
 
-if __name__ == "__main__":
-    # file_name = 'test_result_2.pickle'
-    # print("file name: {}".format(file_name))
-    # with open(file_name, 'rb') as reader:
-    #     data = pickle.load(reader)
-    # labels = data['GT']  # [N, H, W]
-    # outputs = data['output'] # [N, C, H, W]
-    #
-    # binary_class_slice_wise_pr(labels, outputs, fig_name= 'test_2_binary_pr')
-    # multi_class_slice_wise_pr(labels, outputs, fig_name='test_2_multi_pr_micro')
-    # average_precision(labels, outputs)
-    # path of original annotation
-    orig_label_path = "./PlaqueSegmentation/OrigAnnotation/2d_res_unet_dp_0.001_0.90_0.9_theta-1.0-0.0_100_2_10_dice_Adam_" \
-                      "r-True_flip-True_w-True_rcp-True_tr-False_ns-Falseptr-False_mv-False_sl-False_ds-2_a-0.5_lr-StepLR_" \
-                      "wt-None_o-5_b-False_cal0gt-False_cf-config_dp-0.0_ig-None_w0-10.0_sg-5.0_96_wt-1_mo_False"
-
-    # seg_data_path = "/home/mil/huang/CPR_Segmentation_ver7/PlaqueSegmentation/Experiment23/2d_res_unet_dp_0.0001_0.90_" \
-    #                 "0.9_theta-1.0-0.0_100_100_10_ceb_Adam_r-True_flip-True_w-True_rcp-True_tr-False_ns-Falseptr-False_mv" \
-    #                 "-False_sl-False_ds-2_a-0.5_lr-StepLR_wt-None_o-3_b-False_cal0gt-False_cf-config_dp-0.0_ig-None_w0-10.0_" \
-    #                 "sg-5.0_96_wt-1_mo_False"
-    # bound_data_2d_path = "/home/mil/huang/CPR_Segmentation_ver7/PlaqueBound/Experiment3/2d_res_unet_dp_0.001_0.0_100_100_10" \
-    #                   "_whd_Adam_r-True_flip-True_w-False_ptr-False_mv-False_sl-False_lr-StepLR_wt-None_o-2_b-True_cf-config" \
-    #                   "_dp-0.0_w1-10.0_w2-10.0_sg1-5.0_sg2-5.0_rs-96_wt-2_bt-outer_whda-4_whdb-1"
-    # bound_data_3d_path = "./BoundDetection/Experiment4/3d_res_unet_0.001_100_100_whd_Adam_w-False_sl-True_lr-StepLR_wt-None_o" \
-    #                      "-2_b-True_cf-config_dp-0.0_rs-96_cc-192_wt-2_bt-outer_whda-4_whdb-1_whdr-0.5"
-    # fig_save_dir = "/home/mil/huang/CPR_Segmentation_ver7/PlaqueDetection_20181127/ResultsComparison/seg_bound_comp_debug3"
-
-    # seg_bound_comparison(orig_label_path, seg_data_path, bound_data_2d_path, bound_data_3d_path, fig_save_dir, sample_stack_rows=50)
-
-    bound_data_path = "./BoundDetection/Experiment7/HybridResUNet_ds1int15_0.167"
-    gif_generation(orig_label_path, bound_data_path)
+# if __name__ == "__main__":
+#     # file_name = 'test_result_2.pickle'
+#     # print("file name: {}".format(file_name))
+#     # with open(file_name, 'rb') as reader:
+#     #     data = pickle.load(reader)
+#     # labels = data['GT']  # [N, H, W]
+#     # outputs = data['output'] # [N, C, H, W]
+#     #
+#     # binary_class_slice_wise_pr(labels, outputs, fig_name= 'test_2_binary_pr')
+#     # multi_class_slice_wise_pr(labels, outputs, fig_name='test_2_multi_pr_micro')
+#     # average_precision(labels, outputs)
+#     # path of original annotation
+#     orig_label_path = "./PlaqueSegmentation/OrigAnnotation/2d_res_unet_dp_0.001_0.90_0.9_theta-1.0-0.0_100_2_10_dice_Adam_" \
+#                       "r-True_flip-True_w-True_rcp-True_tr-False_ns-Falseptr-False_mv-False_sl-False_ds-2_a-0.5_lr-StepLR_" \
+#                       "wt-None_o-5_b-False_cal0gt-False_cf-config_dp-0.0_ig-None_w0-10.0_sg-5.0_96_wt-1_mo_False"
+#
+#     # seg_data_path = "/home/mil/huang/CPR_Segmentation_ver7/PlaqueSegmentation/Experiment23/2d_res_unet_dp_0.0001_0.90_" \
+#     #                 "0.9_theta-1.0-0.0_100_100_10_ceb_Adam_r-True_flip-True_w-True_rcp-True_tr-False_ns-Falseptr-False_mv" \
+#     #                 "-False_sl-False_ds-2_a-0.5_lr-StepLR_wt-None_o-3_b-False_cal0gt-False_cf-config_dp-0.0_ig-None_w0-10.0_" \
+#     #                 "sg-5.0_96_wt-1_mo_False"
+#     # bound_data_2d_path = "/home/mil/huang/CPR_Segmentation_ver7/PlaqueBound/Experiment3/2d_res_unet_dp_0.001_0.0_100_100_10" \
+#     #                   "_whd_Adam_r-True_flip-True_w-False_ptr-False_mv-False_sl-False_lr-StepLR_wt-None_o-2_b-True_cf-config" \
+#     #                   "_dp-0.0_w1-10.0_w2-10.0_sg1-5.0_sg2-5.0_rs-96_wt-2_bt-outer_whda-4_whdb-1"
+#     # bound_data_3d_path = "./BoundDetection/Experiment4/3d_res_unet_0.001_100_100_whd_Adam_w-False_sl-True_lr-StepLR_wt-None_o" \
+#     #                      "-2_b-True_cf-config_dp-0.0_rs-96_cc-192_wt-2_bt-outer_whda-4_whdb-1_whdr-0.5"
+#     # fig_save_dir = "/home/mil/huang/CPR_Segmentation_ver7/PlaqueDetection_20181127/ResultsComparison/seg_bound_comp_debug3"
+#
+#     # seg_bound_comparison(orig_label_path, seg_data_path, bound_data_2d_path, bound_data_3d_path, fig_save_dir, sample_stack_rows=50)
+#
+#     bound_data_path = "./BoundDetection/Experiment7/HybridResUNet_ds1int15_0.167"
+#     gif_generation(orig_label_path, bound_data_path)

@@ -1,24 +1,20 @@
 # _*_ coding: utf-8 _*_
 
-""" metrics for accuracy evaluation """
+""" metrics used to evaluate the performance of our approach """
 
 from sklearn.preprocessing import label_binarize
-import torch
-import numpy as np
 from sklearn.metrics import f1_score
 
 import warnings
-warnings.filterwarnings('ignore', module='sklearn')
+warnings.filterwarnings('ignore', module='sklearn') # omit sklearn warning
 import torch
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
-from torch import nn
 
 from medpy.metric.binary import hd95, asd
 from medpy.metric.binary import ravd
 
 torch.set_default_dtype(torch.float32)
-
 
 def _assert_no_grad(variables):
     for var in variables:
@@ -27,15 +23,14 @@ def _assert_no_grad(variables):
             "mark these variables as volatile or not requiring gradients"
 
 def cdist(x, y):
-    '''
-    Input: x is a Nxd Tensor
-           y is a Mxd Tensor
-    Output: dist is a NxM matrix where dist[i,j] is the norm
-           between x[i,:] and y[j,:]
-    i.e. dist[i,j] = ||x[i,:]-y[j,:]||
-    '''
+    """
+    :param x: N x d Tensor
+    :param y: M x d Tensor
+    :return distances: sum of point-wise distances
+    """
     differences = x.unsqueeze(1) - y.unsqueeze(0)
     distances = torch.sum(differences ** 2, -1).sqrt()
+
     return distances
 
 
@@ -153,7 +148,8 @@ def slicewise_hd95(pred, target, n_classes=3):
     return mean_res
 
 def channelwise_ahd(pred, target):
-    """ calculate channel wise average Hausdorff distance
+    """ calculate channel wise average Hausdorff distance,
+    especially for pred with multiple channels.
     :param pred: ndarray with size [C, H, W], predicted boundary
     :param target: ndarray with size [C, H, W], GT boundary
     :return mean_res: float, average hdf
@@ -178,7 +174,8 @@ def channelwise_ahd(pred, target):
     return mean_res
 
 def channelwise_hd95(pred, target):
-    """ calculate channel-wise 95 percentile symmetric Hausdorff distance
+    """ calculate channel-wise 95 percentile symmetric Hausdorff distance,
+    especially for pred with multiple channels.
     :param pred: ndarray with size [C, H, W], predicted boundary
     :param target: ndarray with size [C, H, W], GT boundary
     :return mean_hd95: float, average hdf
@@ -196,7 +193,6 @@ def channelwise_hd95(pred, target):
     mean_hd95 = sum(channel_res) / len(channel_res)
 
     return mean_hd95
-
 
 def channelwise_asd(pred, target):
     """ calculate channel-wise average symmetric surface distance """
@@ -265,6 +261,7 @@ def volumewise_ravd(preds, targets):
             ravds.append(slicewise_ravd(pred, target))
 
     return (sum(ravds) / len(preds))
+
 
 def cal_f_score(preds, labels, n_class=5, return_class_f1= False, return_slice_f1=False):
     """ calculate average f1_score of given output and target batch
@@ -411,65 +408,10 @@ def slicewise_multiclass_f1(pred, label, n_class=3):
     return ave_slice_f1
 
 
-# def bin_dice_score(preds, labels):
-#     """ calculate binary dice from preds and labels
-#     Args:
-#         preds: Binary LongTensor [N, H, W, T], predicted label
-#         labels: Binary LongTensor [N, H, W, T], GT labels
-#     """
-#     smooth = 1.0
-#     if not isinstance(preds, np.ndarray):
-#         preds = preds.cpu().numpy()
-#         labels = labels.cpu().numpy()
-#
-#     n_batches = preds.shape[0]
-#
-#     dice_score = 0.0
-#
-#     for (pred, label) in zip(preds, labels):
-#         intersection = pred * label
-#         numerator = 2 * intersection.sum() + smooth
-#
-#         # output^2 is not used here
-#         denominator = (pred + label).sum() + smooth
-#         # print "numerator: {}".format(numerator)
-#         # print "denominator: {}".format(denominator)
-#         dice_score += (numerator / denominator)
-#
-#     return dice_score / n_batches
-#
-#
-# def bin_f_score(preds, labels):
-#     """ calculate binary f1 score from preds and labels
-#     Args:
-#         preds: Binary LongTensor, predited label
-#         labels: Binary LongTensor, GT labels
-#     """
-#     if not isinstance(preds, np.ndarray):
-#         preds = preds.cpu().numpy()
-#         labels = labels.cpu().numpy()
-#
-#     n_batches = preds.shape[0]
-#
-#     f_score = 0.0
-#     for (pred, label) in zip(preds, labels):
-#         pred, label = pred.flatten(), label.flatten()
-#         if np.sum(label) == 0:
-#             if np.sum(pred) == 0:
-#                 f_batch = 1.0
-#             else:
-#                 f_batch = 0.0
-#         else:
-#             f_batch = f1_score(label, pred)
-#
-#         f_score += f_batch
-#
-#     return f_score/n_batches
-
-if __name__ == "__main__":
-    label = torch.zeros(1, 64, 64, 16).long()
-    label[0:8, 0:32, 0:32, 0:3] = 1
-    pred = torch.zeros(1, 64, 64, 16).long()
-    # pred[9:12, 16:48, 16:48, 2:7] = 1
-    print("Dice score: {}".format(bin_dice_score(label, pred)))
-    print("F1 score: {}".format(bin_f_score(label, pred)))
+# if __name__ == "__main__":
+#     label = torch.zeros(1, 64, 64, 16).long()
+#     label[0:8, 0:32, 0:32, 0:3] = 1
+#     pred = torch.zeros(1, 64, 64, 16).long()
+#     # pred[9:12, 16:48, 16:48, 2:7] = 1
+#     print("Dice score: {}".format(bin_dice_score(label, pred)))
+#     print("F1 score: {}".format(bin_f_score(label, pred)))

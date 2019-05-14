@@ -20,10 +20,3 @@ main parts of our codes are listed as below:
   
 ## How to run
 running this project is very simple. For plaque detection, change to directory PlaqueSegmentation directory, modify the parameters setting in main.sh and run the main.sh file with ./main.sh. Please notice that datasets used for train, validation and test should be defined first (with both input image and annotation). For boundary detection, similar operations to plaque detection are necessary.  
-
-## sample results
-### results on Coronary Artery dataset
-<img src="./results_coronary.png"  title="results on coronary artery dataset">
-
-### results on PROMISE12 dataset
-<img src="./results_promise12.png"  title="results on the public PROMISE12 dataset">
